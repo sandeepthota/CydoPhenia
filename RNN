@@ -1,0 +1,43 @@
+local RNN = {}
+
+function RNN.rnn(parr_local_inputsize, parr_rnnSize, parr_N, parr_dropOut)
+  
+
+  local local_inputs = {}
+  table.insert(local_inputs, t_neuralNetwork.Identity()()) 
+  for L = 1,parr_N do
+    table.insert(local_inputs, t_neuralNetwork.Identity()())
+
+  end
+
+  local step_X, parr_local_inputsize_L
+  local outputs = {}
+  for L = 1,parr_N do
+    
+    local prev_hiddenState = local_inputs[L+1]
+    if L == 1 then 
+      step_X = OneHot(parr_local_inputsize)(local_inputs[1])
+      parr_local_inputsize_L = parr_local_inputsize
+    else 
+      step_X = outputs[(L-1)] 
+      if parr_dropOut > 0 then step_X = t_neuralNetwork.parr_dropOut(parr_dropOut)(step_X) end
+      parr_local_inputsize_L = parr_rnnSize
+    end
+
+    local i2h = t_neuralNetwork.Linear(parr_local_inputsize_L, parr_rnnSize)(step_X)
+    local h2h = t_neuralNetwork.Linear(parr_rnnSize, parr_rnnSize)(prev_hiddenState)
+    local next_h = t_neuralNetwork.Tanh()(t_neuralNetwork.CAddTable(){i2h, h2h})
+
+    table.insert(outputs, next_h)
+  end
+
+  local top_h = outputs[#outputs]
+  if parr_dropOut > 0 then top_h = t_neuralNetwork.parr_dropOut(parr_dropOut)(top_h) end
+  local proj = t_neuralNetwork.Linear(parr_rnnSize, parr_local_inputsize)(top_h)
+  local logsoft = t_neuralNetwork.LogSoftMax()(proj)
+  table.insert(outputs, logsoft)
+
+  return t_neuralNetwork.gModule(local_inputs, outputs)
+end
+
+return RNN
