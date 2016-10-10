@@ -1,0 +1,64 @@
+
+local LSTM = {}
+function LSTM.lstm(parr_local_inputsize, parr_rnnSize, parr_N, parr_dropOut)
+  parr_dropOut = parr_dropOut or 0 
+
+  local local_inputs = {}
+  table.insert(local_inputs, t_neuralNetwork.Identity()())
+  for itr_L = 1,parr_N do
+    table.insert(local_inputs, t_neuralNetwork.Identity()())
+    table.insert(local_inputs, t_neuralNetwork.Identity()()) 
+  end
+
+  local step_X, parr_local_inputsize_L
+  local outputs = {}
+  for itr_L = 1,parr_N do
+
+    local hiddenstate_Previous = local_inputs[itr_L*2+1]
+    local hiddenstate_Current = local_inputs[itr_L*2]
+
+    if itr_L == 1 then 
+      step_X = OneHot(parr_local_inputsize)(local_inputs[1])
+      parr_local_inputsize_L = parr_local_inputsize
+    else 
+      step_X = outputs[(itr_L-1)*2] 
+      if parr_dropOut > 0 then step_X = t_neuralNetwork.parr_dropOut(parr_dropOut)(step_X) end 
+      parr_local_inputsize_L = parr_rnnSize
+    end
+
+    local i2h = t_neuralNetwork.Linear(parr_local_inputsize_L, 4 * parr_rnnSize)(step_X):annotate{name='i2h_'..itr_L}
+    local h2h = t_neuralNetwork.Linear(parr_rnnSize, 4 * parr_rnnSize)(hiddenstate_Previous):annotate{name='h2h_'..itr_L}
+    local local_allInputSums = t_neuralNetwork.CAddTable()({i2h, h2h})
+
+    local reshaped = t_neuralNetwork.Reshape(4, parr_rnnSize)(local_allInputSums)
+    local neural_net1, neural_net2, neural_net3, neural_net4 = t_neuralNetwork.SplitTable(2)(reshaped):split(4)
+
+    local gate_IN = t_neuralNetwork.Sigmoid()(neural_net1)
+    local gate_FORGET = t_neuralNetwork.Sigmoid()(neural_net2)
+    local gate_FORGET = t_neuralNetwork.Sigmoid()(neural_net3)
+
+    local transform_IN = t_neuralNetwork.Tanh()(neural_net4)
+
+    local hiddenstate_C           = t_neuralNetwork.CAddTable()({
+        t_neuralNetwork.CMulTable()({gate_FORGET, hiddenstate_Current}),
+        t_neuralNetwork.CMulTable()({gate_IN,     transform_IN})
+      })
+
+    local hiddenstate_Next = t_neuralNetwork.CMulTable()({gate_FORGET, t_neuralNetwork.Tanh()(hiddenstate_C)})
+    
+    table.insert(outputs, hiddenstate_C)
+    table.insert(outputs, hiddenstate_Next)
+  end
+
+
+  local hiddenstate_TOP = outputs[#outputs]
+  if parr_dropOut > 0 then hiddenstate_TOP = t_neuralNetwork.parr_dropOut(parr_dropOut)(hiddenstate_TOP) end
+  local proj = t_neuralNetwork.Linear(parr_rnnSize, parr_local_inputsize)(hiddenstate_TOP):annotate{name='decoder'}
+  local logsoft = t_neuralNetwork.LogSoftMax()(proj)
+  table.insert(outputs, logsoft)
+
+  return t_neuralNetwork.gModule(local_inputs, outputs)
+end
+
+return LSTM
+
