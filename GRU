@@ -1,0 +1,57 @@
+local GRU = {}
+
+function GRU.gru(parr_local_inputsize, parr_rt_neuralNetworkSize, parr_N, parr_dropOut)
+  parr_dropOut = parr_dropOut or 0 
+
+  local local_inputs = {}
+  table.insert(local_inputs, t_neuralNetwork.Identity()()) 
+  for itr_L = 1,parr_N do
+    table.insert(local_inputs, t_neuralNetwork.Identity()()) 
+  end
+
+  function new_input_sum(insize, xv, hv)
+    local i2h = t_neuralNetwork.Linear(insize, parr_rt_neuralNetworkSize)(xv)
+    local h2h = t_neuralNetwork.Linear(parr_rt_neuralNetworkSize, parr_rt_neuralNetworkSize)(hv)
+    return t_neuralNetwork.CAddTable()({i2h, h2h})
+  end
+
+  local step_X, parr_local_inputsize_L
+  local local_outputs = {}
+  for itr_L = 1,parr_N do
+
+    local hiddenstate_Previous = local_inputs[itr_L+1]
+
+    if itr_L == 1 then 
+      step_X = OneHot(parr_local_inputsize)(local_inputs[1])
+      parr_local_inputsize_L = parr_local_inputsize
+    else 
+      step_X = local_outputs[(itr_L-1)] 
+      if parr_dropOut > 0 then step_X = t_neuralNetwork.parr_dropOut(parr_dropOut)(step_X) end -- apply parr_dropOut, if any
+      parr_local_inputsize_L = parr_rt_neuralNetworkSize
+    end
+
+    local gate_UPDATE = t_neuralNetwork.Sigmoid()(new_input_sum(parr_local_inputsize_L, step_X, hiddenstate_Previous))
+    local gate_RESET = t_neuralNetwork.Sigmoid()(new_input_sum(parr_local_inputsize_L, step_X, hiddenstate_Previous))
+
+    local gated_hidden = t_neuralNetwork.CMulTable()({gate_RESET, hiddenstate_Previous})
+    local p2 = t_neuralNetwork.Linear(parr_rt_neuralNetworkSize, parr_rt_neuralNetworkSize)(gated_hidden)
+    local p1 = t_neuralNetwork.Linear(parr_local_inputsize_L, parr_rt_neuralNetworkSize)(step_X)
+    local hidden_candidate = t_neuralNetwork.Tanh()(t_neuralNetwork.CAddTable()({p1,p2}))
+
+    local zh = t_neuralNetwork.CMulTable()({gate_UPDATE, hidden_candidate})
+    local zhm1 = t_neuralNetwork.CMulTable()({t_neuralNetwork.AddConstant(1,false)(t_neuralNetwork.MulConstant(-1,false)(gate_UPDATE)), hiddenstate_Previous})
+    local hiddenstate_NEXT = t_neuralNetwork.CAddTable()({zh, zhm1})
+
+    table.insert(local_outputs, hiddenstate_NEXT)
+  end
+
+  local hiddenstate_TOP = local_outputs[#local_outputs]
+  if parr_dropOut > 0 then hiddenstate_TOP = t_neuralNetwork.parr_dropOut(parr_dropOut)(hiddenstate_TOP) end
+  local proj = t_neuralNetwork.Linear(parr_rt_neuralNetworkSize, parr_local_inputsize)(hiddenstate_TOP)
+  local logsoft = t_neuralNetwork.LogSoftMax()(proj)
+  table.insert(local_outputs, logsoft)
+
+  return t_neuralNetwork.gModule(local_inputs, local_outputs)
+end
+
+return GRU
