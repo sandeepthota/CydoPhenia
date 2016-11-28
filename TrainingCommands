@@ -1,0 +1,56 @@
+
+
+sort rockyou.txt | uniq -u > rockyou.unique.txt
+du -sb rockyou.* 
+sort -R rockyou.unique.txt > rockyou.random.txt
+head -n 250000 rockyou.random.txt > train.txt
+sort train.txt test.txt | uniq -d | wc -l 
+
+
+cat pws-* | sort | uniq -u > output-1.txt
+wc -l output-1.txt 
+31441 output-1.txt  
+sort output-1.txt train.txt | uniq -d | wc -l 
+sort output-1.txt test.txt | uniq -d | wc -l 
+
+[RUNNING]
+GPU 0: BASIC 8-12
+python scripts/preprocess.py --input_txt inputC.txt --output_h5 basic8-12.h5 --output_json basic8-12.json
+th train.lua -checkpoint_name cv_Basic812/Checkpoint -gpu 0 -input_h5 basic8-12.h5 -input_json basic8-12.json -model_type lstm -num_layers 3 -rnn_size 256 -max_epochs 15
+
+
+iconv -f utf-8 -t utf-8 -c input.txt > inputC.txt
+iconv -f utf-8 -t utf-8 -c inputR.txt > inputC.txt
+
+
+python scripts/preprocess.py --input_txt inputC.txt --output_h5 basic8-12C.h5 --output_json basic8-12C.json
+th train.lua -checkpoint_name cv_Basic8-12C/Checkpoint -gpu 1 -input_h5 basic8-12C.h5 -input_json basic8-12C.json -model_type lstm -num_layers 3 -rnn_size 256 -max_epochs 15
+
+B812RNN :
+
+python scripts/preprocess.py --input_txt inputF.txt --output_h5 basic8-12-RNN.h5 --output_json basic8-12-RNN.json
+th train.lua -checkpoint_name cv_Basic8-12-RNN/Checkpoint -gpu 2 -input_h5 basic8-12-RNN.h5 -input_json basic8-12-RNN.json -model_type rnn -num_layers 3 -rnn_size 256 -max_epochs 15
+
+B12GRNN :
+
+python scripts/preprocess.py --input_txt inputC.txt --output_h5 basic12G-RNN.h5 --output_json basic12G-RNN.json
+th train.lua -checkpoint_name cv_Basic12G-RNN/Checkpoint -gpu 1 -input_h5 basic12G-RNN.h5 -input_json basic12G-RNN.json -model_type rnn -num_layers 3 -rnn_size 256 -max_epochs 15
+
+[RUNNING]
+GPU 0: BASIC 8-12
+python scripts/preprocess.py --input_txt inputC.txt --output_h5 basic8-12.h5 --output_json basic8-12.json
+th train.lua -checkpoint_name cv_Basic812/Checkpoint -gpu 0 -input_h5 basic8-12.h5 -input_json basic8-12.json -model_type lstm -num_layers 3 -rnn_size 256 -max_epochs 15
+
+GPU 1: BASIC 12G
+python scripts/preprocess.py --input_txt inputC.txt --output_h5 basic12G.h5 --output_json basic12G.json
+th train.lua -checkpoint_name cv_Basic12G/Checkpoint -gpu 1 -input_h5 basic12G.h5 -input_json basic12G.json -model_type lstm -num_layers 3 -rnn_size 256 -max_epochs 15
+
+[RUNNING]
+GPU 2: Complex-8-12 RNN
+python scripts/preprocess.py --input_txt inputC.txt --output_h5 Complex8-12.h5 --output_json Complex8-12.json
+th train.lua -checkpoint_name cv_Complex812-RNN/Checkpoint -gpu 2 -input_h5 Complex8-12.h5 -input_json Complex8-12.json -model_type rnn -num_layers 3 -rnn_size 256 -max_epochs 15
+
+[RUNNING]
+GPU 3: Complex-12G RNN
+python scripts/preprocess.py --input_txt inputC.txt --output_h5 Complex12G.h5 --output_json Complex12G.json
+th train.lua -checkpoint_name cv_Complex12G-RNN/Checkpoint -gpu 3 -input_h5 Complex12G.h5 -input_json Complex12G.json -model_type rnn -num_layers 3 -rnn_size 256 -max_epochs 15
